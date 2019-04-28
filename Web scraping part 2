@@ -1,0 +1,98 @@
+#Part 2 tackles scraping of further financial data from another subsite of the bankier. New subsite presents additional chalenges
+#that a scraping person must overcome so it is a good practice example. In this case, the code will enable you to access data for AMREST
+#loading a full set of tickers into the list 'lista' would enable you to download the data in bulk
+
+#import essential libraries
+import requests
+from selenium import webdriver
+from selenium.common.exceptions import NoSuchElementException # - to catch different versions of the website
+import pandas as pd
+
+lista =['AMREST']
+dfcolumns = (['Ticker','revenue2014', 'revenue2015', 'revenue2016', 'revenue2017' , 'revenue2018',   # shape of the DataFrame used to store the scraped data                       
+                           'opprofit2014', 'opprofit2015', 'opprofit2016', 'opprofit2017', 'opprofit2018',
+                           'netincome2014', 'netincome2015', 'netincome2016', 'netincome2017', 'netincome2018',
+                           'ebitda2014','ebitda2015', 'ebitda2016', 'ebitda2017', 'ebitda2018',
+                           'assets2014', 'assets2015', 'assets2016', 'assets2017', 'assets2018',
+                           'eps2014', 'eps2015', 'eps2016', 'eps2017', 'eps2018',
+                           'bookvalueps2014', 'bookvalueps2015', 'bookvalueps2016', 'bookvalueps2017', 'bookvalueps2018'])
+#get_year function enables us to see the years for which the data is available. It needed to be introduced as various companies have 
+#different reporting periods. The function could have been much simpler with the use of selenium. Requests lib was used 
+#just to practice with it
+def get_year(url):
+    request=requests.get(url)
+    webpage_text = request.text
+    results = webpage_text.split('boxContent boxTable')[1]
+    results = results.split('</tr>')[0]
+    results = str(results)
+    results = ''.join(filter(lambda x: x.isdigit(), results)) #get only digits from 'results'string
+    n=4
+    results = [results[i:i+n] for i in range(0, len(results), n)] #convert string to the list contatining years for which financials are available
+    return results
+
+#initiate an empty list collecting the row data
+dfdata = [] 
+
+#Main function. endyear stands for the max value from get_year list. length stands for the number of years for which financial data is available
+def scraper(tritem, item, row, startyear, endyear, length):
+    novalue=False                                           
+    newrow =[]
+    try:  # 2 try statements as there are 3 main versions of the webpage: financials available for 2015-2018, 2014-2017 and financials available for less than 4 years
+        try:
+            elem=browser.find_element_by_xpath('//*[@id="boxProfil"]/div[2]/div[2]/div[2]/table/tbody/tr['+
+                                               str(tritem) + ']/td[' + str(item) + ']')    
+        except NoSuchElementException:
+            elem=browser.find_element_by_xpath('//*[@id="boxProfil"]/div[2]/div[3]/div[2]/table/tbody/tr['+
+                                               str(tritem) +']/td[' + str(item) +']')  
+    except NoSuchElementException:
+        #catch the error when there is less than 4 values available (i.e. only two last years)
+        novalue = True 
+    if startyear == '2014': 
+        row.append(elem.get_attribute('innerText'))
+        print(elem.get_attribute('innerText'))
+        if item == 5:
+            row.append('NULL')   
+    else:
+        if length == 4:
+            if item == 2:
+                row.append('NULL')
+            row.append(elem.get_attribute('innerText'))
+            print(elem.get_attribute('innerText'))
+        else:
+            number_of_missing_rows = 4-length
+            if item in range (2, 2 + number_of_missing_rows): #starts with 2 as 1 is a string name of the row
+                row.append('NULL')
+            if novalue == False:
+                newrow.append(elem.get_attribute('innerText'))
+                print(elem.get_attribute('innerText'))
+            else:
+                pass
+            if endyear == '2018':
+                if item == 2:
+                    row.append('NULL')
+                row.extend(newrow)
+            else:
+                row[-1:-1] = newrow
+                    
+def sel(ticker):
+     #trlist - list of tr's having useful data on bankier's website
+     trlist = [1,2,4,6,7,10,11] 
+     row =[]
+     row.append(ticker)
+     url = 'https://www.bankier.pl/gielda/notowania/akcje/' +  ticker + '/wyniki-finansowe/skonsolidowany/roczny/standardowy'
+     browser.get(url)
+     #implicit wait of 7 seconds to make sure the website loads on the slow internet connection
+     browser.implicitly_wait(7)
+     lenght = len(get_year(url))
+     for tritem in trlist:
+         for item in range (2, 6):
+             #note that we finally use the main function "scraper"
+             scraper(tritem, item, row, get_year(url)[0], get_year(url)[-1], lenght)
+     dfdata.append(row)
+
+browser=webdriver.Chrome() #fire up selenium chrome driver. Needs to be outside of the loop to avoid
+                           #multiple instances of Chrome
+for item in lista:
+    sel(item)  
+df = pd.DataFrame(dfdata, columns = dfcolumns)
+df.to_excel(r"C:\Python\newestoutput.xlsx")

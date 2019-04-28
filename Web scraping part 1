@@ -1,3 +1,7 @@
+#In the first part of webscraping we will look for all stocks available on the webpage. 
+#Once we have the list of stocks and their subsites, we look for turnover value. The turnover value changes depending on the timeframe.
+#In example below, we are interested in the turnover based on the data from the last year - 1Y
+
 # imports of esssential libraries
 import requests
 import re
@@ -39,37 +43,42 @@ def get_turnover(url):
     browser.get(url)
     browser.implicitly_wait(20) # seconds to load the page (not necessary but useful in case of extremely slow broadband)
     try:      
+    
         #once the page loads, a cookie policy request pops up and blocks access to certain elements of the page
         #in order to go further, one needs to click one of the buttons
         popup = browser.find_elements_by_class_name("qc-cmp-button")
+        
         #we have the popup element, now we use Actionchain to to perform a Click
         actions = ActionChains(browser)
         actions.click(popup[0]) #popup is a list of popups
         actions.perform()
     except IndexError:
         pass
-    button=browser.find_elements_by_xpath("//*[contains(text(), '1R')]") # click the button in order to have JS recalculate
+    button=browser.find_elements_by_xpath("//*[contains(text(), '1R')]") # click the button in order to have Javascript recalculate
+    
     #values for the last year (see the website to fully understand the purpose of clicking the button).
     #important! - If there’s more than one element that matches the query, then only the first will be returned.
-    # If nothing can be found, a NoSuchElementException will be raised.
+    #If nothing can be found, a NoSuchElementException will be raised.
     #unfortunately, our button is beyond the page view. Buttons tend to be clickable only
     #if they are visible, hence we navigate to the button
     ActionChains(browser).move_to_element(button[0]).perform() 
+    
     #in my case moving to the button was not enough so scroll down even further
     browser.execute_script("window.scrollTo(0, 500)")
     actions.click(button[0])
     actions.perform()
     elem=browser.find_element_by_class_name('turnoverAverageValue')
-    #print(elem.is_displayed()) #if it is displayed, then it is easy. If it is not, you need the trick from the below
-    return elem.get_attribute('innerText') #very important 
+    
+    #print(elem.is_displayed()) #if the element is displayed, sourcing the data from it is simple.
+    #If the element is not displayed, you need the trick from the below:
+    return elem.get_attribute('innerText') #attribute innertext is easy to miss when starting to web scrape - IMPORTANT
 turnoverlist=[]
 
+#we loop through the tickerlist and use our function get_turnover:
 for item in tickerlist:
-
-tutaj ogarnij ten done na dole, chyba trzeba dac jakis przyklad z jednym tickerem, zeby ktos sobie mogl to odpalic jako przyklad
-
     url = 'https://www.bankier.pl/inwestowanie/profile/quote.html?symbol={}'.format(item)
-#    turnoverlist.append(get_turnover(url)) - done
-
+    turnoverlist.append(get_turnover(url))
+    
+#we create a dataframe that is later saved in a convenient Excel spreadsheet form
 df=pd.DataFrame({'Namelist': namelist, 'Ticker':tickerlist,'AverageTurnover':turnoverlist})
 df.to_excel("C:\Python\output.xlsx")

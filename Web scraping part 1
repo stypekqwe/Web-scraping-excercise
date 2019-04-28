@@ -1,0 +1,75 @@
+# imports of esssential libraries
+import requests
+import re
+from selenium import webdriver
+from selenium.webdriver.common.action_chains import ActionChains
+import pandas as pd
+
+# access the subsite consisting the list of all listed equities in Poland
+request=requests.get('https://www.bankier.pl/gielda/notowania/akcje')
+
+#the list of names of equities
+namelist=[] 
+#the list of tickers of equities
+tickerlist=[]
+webpage_text = request.text
+
+#  remember that the split will give you a list of the whole webpage separated by olWalor textNowrap - you can
+#easily iterate throught the page thanks to that   
+results = webpage_text.split('''colWalor textNowrap">
+        <a title''') 
+for item in results[1:]: 
+    x=item.split('href')[0]
+    x=x[2:(len(x)-2)]
+    namelist.append(x)
+for item in results[1:]:
+    x=item.split('symbol=')[1]
+    x=x.split('"')[0]
+    tickerlist.append(x)
+
+#find links to the companies' subsites using links starting with a number or a letter
+links=re.findall(r'href="/inwestowanie/profile/quote.html\?symbol=[0-9-A-Z]*', request.text)
+links = [x for x in links if x != 'href="/inwestowanie/profile/quote.html?symbol='] #cleanse the data from empty links
+
+url = 'https://www.bankier.pl/inwestowanie/profile/quote.html?symbol={}'.format(tickerlist[0])
+
+#initiate chrome browser:
+browser=webdriver.Chrome() #important: you need to have a webdriver.exe in the folder of this script
+def get_turnover(url):
+    browser.get(url)
+    browser.implicitly_wait(20) # seconds to load the page (not necessary but useful in case of extremely slow broadband)
+    try:      
+        #once the page loads, a cookie policy request pops up and blocks access to certain elements of the page
+        #in order to go further, one needs to click one of the buttons
+        popup = browser.find_elements_by_class_name("qc-cmp-button")
+        #we have the popup element, now we use Actionchain to to perform a Click
+        actions = ActionChains(browser)
+        actions.click(popup[0]) #popup is a list of popups
+        actions.perform()
+    except IndexError:
+        pass
+    button=browser.find_elements_by_xpath("//*[contains(text(), '1R')]") # click the button in order to have JS recalculate
+    #values for the last year (see the website to fully understand the purpose of clicking the button).
+    #important! - If there’s more than one element that matches the query, then only the first will be returned.
+    # If nothing can be found, a NoSuchElementException will be raised.
+    #unfortunately, our button is beyond the page view. Buttons tend to be clickable only
+    #if they are visible, hence we navigate to the button
+    ActionChains(browser).move_to_element(button[0]).perform() 
+    #in my case moving to the button was not enough so scroll down even further
+    browser.execute_script("window.scrollTo(0, 500)")
+    actions.click(button[0])
+    actions.perform()
+    elem=browser.find_element_by_class_name('turnoverAverageValue')
+    #print(elem.is_displayed()) #if it is displayed, then it is easy. If it is not, you need the trick from the below
+    return elem.get_attribute('innerText') #very important 
+turnoverlist=[]
+
+for item in tickerlist:
+
+tutaj ogarnij ten done na dole, chyba trzeba dac jakis przyklad z jednym tickerem, zeby ktos sobie mogl to odpalic jako przyklad
+
+    url = 'https://www.bankier.pl/inwestowanie/profile/quote.html?symbol={}'.format(item)
+#    turnoverlist.append(get_turnover(url)) - done
+
+df=pd.DataFrame({'Namelist': namelist, 'Ticker':tickerlist,'AverageTurnover':turnoverlist})
+df.to_excel("C:\Python\output.xlsx")

@@ -1,5 +1,5 @@
 # Web-scraping-excercise
-An attempt at scraping the financial data from a website
+Scraping the financial data from a website
 
 
 IMPORTANT NOTE: the code was created for excercise purposes only and is not used to to scrape data from www.bankier.pl without permission (if necessary). I am not liable for any inproper use of the code presented in this repository.
